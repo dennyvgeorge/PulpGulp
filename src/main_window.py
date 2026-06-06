@@ -1,13 +1,12 @@
 import os
 import sys
-import subprocess
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QSpinBox, QPlainTextEdit, QFileDialog,
     QSizePolicy, QApplication, QProgressBar
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QPixmap, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtGui import QFont, QPixmap, QDragEnterEvent, QDropEvent, QDesktopServices
 from src.styles import (
     get_stylesheet, get_drop_zone_style, get_toggle_style,
     get_mode_toggle_style, get_file_bar_style,
@@ -817,4 +816,5 @@ class MainWindow(QMainWindow):
 
     def show_in_folder(self):
         if self.saved_file_path and os.path.isfile(self.saved_file_path):
-            subprocess.Popen(f'explorer.exe /select,"{self.saved_file_path}"')
+            directory = os.path.dirname(self.saved_file_path)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(directory))

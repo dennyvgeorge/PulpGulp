@@ -1,16 +1,21 @@
 import os
 
 
-def read_file(filepath):
+def detect_encoding(filepath):
     encodings = ["utf-8", "utf-8-sig", "latin-1", "cp1252", "ascii"]
     for enc in encodings:
         try:
             with open(filepath, "r", encoding=enc) as f:
-                content = f.read()
-            return content
+                f.read(4096)
+            return enc
         except (UnicodeDecodeError, UnicodeError):
             continue
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+    return "utf-8"
+
+
+def read_file(filepath):
+    enc = detect_encoding(filepath)
+    with open(filepath, "r", encoding=enc, errors="replace") as f:
         return f.read()
 
 
@@ -31,12 +36,27 @@ def format_size(byte_size):
 
 
 def chunk_content(content, chunk_size=500):
-    lines = content.splitlines()
-    chunks = []
-    for i in range(0, len(lines), chunk_size):
-        chunk_lines = lines[i:i + chunk_size]
-        chunks.append("\n".join(chunk_lines))
-    return chunks
+    chunk_lines = []
+    for line in content.splitlines():
+        chunk_lines.append(line)
+        if len(chunk_lines) >= chunk_size:
+            yield "\n".join(chunk_lines)
+            chunk_lines = []
+    if chunk_lines:
+        yield "\n".join(chunk_lines)
+
+
+def chunk_file(filepath, chunk_size=500):
+    enc = detect_encoding(filepath)
+    chunk_lines = []
+    with open(filepath, "r", encoding=enc, errors="replace") as f:
+        for line in f:
+            chunk_lines.append(line.rstrip("\n"))
+            if len(chunk_lines) >= chunk_size:
+                yield "\n".join(chunk_lines)
+                chunk_lines = []
+    if chunk_lines:
+        yield "\n".join(chunk_lines)
 
 
 def estimate_chunks(content, chunk_size=500):
