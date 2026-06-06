@@ -27,7 +27,7 @@ class CondenseWorker(QThread):
 
     def run(self):
         try:
-            chunks = chunk_content(self.content, self.chunk_size)
+            chunks = list(chunk_content(self.content, self.chunk_size))
             total_chunks = len(chunks)
 
             if total_chunks == 0:
