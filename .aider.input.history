@@ -1,0 +1,1460 @@
+
+# 2026-06-05 11:33:19.142977
++n
+
+# 2026-06-05 11:34:02.506149
++lms server start; Start-Sleep -Seconds 2; Set-Location "J:\Projects\PulpGulp"; aider --openai-api-base http://127.0.0.1:1234/v1 --openai-api-key not-needed --model openai/qwen3.6-27b --edit-format whole --no-git --no-show-model-warnings --read .aider.conventions.md
+
+# 2026-06-05 11:34:08.672764
++n
+
+# 2026-06-05 11:34:41.943407
++Create these four files exactly as specified below.
++
++FILE 1: requirements.txt
++
++PyQt6>=6.5
++requests>=2.28
++chardet>=5.0
++
++FILE 2: src/__init__.py
++
++# PulpGulp
++
++FILE 3: src/prompts.py
++
++PROMPTS = {
++    "light": """You are a log cleaner. Your job is to clean up the provided log by:
++
++1. REMOVE all duplicate and repeated lines. If a line appears multiple times, keep it once and add "[repeated N times]" after it.
++2. REMOVE all progress bars, download bars, percentage tickers, and spinner output.
++3. REMOVE excessive blank lines (collapse to single blank line).
++4. REMOVE redundant timestamp-only lines that carry no information.
++5. KEEP everything else exactly as-is, character for character.
++6. KEEP all errors, warnings, tracebacks, file paths, and numeric values verbatim.
++7. KEEP all status messages, state changes, and configuration output.
++
++Output ONLY the cleaned log. No commentary, no summary, no explanation. Just the cleaned log text.""",
++
++    "normal": """You are a diagnostic log extractor. Your job is to extract the diagnostic narrative from the provided log chunk. This means preserving everything needed to understand what happened, what broke, and why.
++
++PRESERVE (character for character, exact text):
++- ALL error messages, exceptions, tracebacks, and stack traces
++- ALL warnings
++- The 3-5 lines IMMEDIATELY BEFORE each error (the cause is usually there)
++- ALL file paths, line numbers, and numeric values exactly as they appear
++- ALL state changes (loaded, started, stopped, connected, disconnected, etc.)
++- ALL configuration values and environment info (versions, GPU info, memory, settings)
++- ALL timing information (how long things took)
++
++CONDENSE (keep briefly):
++- Success runs: collapse to one line like "Frames 1-14 processed successfully, avg 1.2s each"
++- Repeated identical lines: collapse to "[repeated N times, last value: X]"
++
++REMOVE:
++- Progress bars, download indicators, percentage tickers
++- Blank lines and whitespace-only lines
++- Redundant debug spam that adds no diagnostic value
++- Verbose logging that repeats the same info in different formats
++
++CRITICAL RULES:
++- Output ONLY the extracted log content. No commentary, no summary header, no explanation.
++- Do NOT paraphrase error messages. Copy them exactly.
++- Do NOT skip tracebacks. Include every line of every traceback.
++- Maintain chronological order.
++- When in doubt, KEEP the line rather than remove it.""",
++
++    "heavy": """You are an error extractor. Your job is to extract ONLY the failure chain from the provided log chunk.
++
++EXTRACT:
++- ALL error messages and exception text (exact, verbatim)
++- ALL tracebacks and stack traces (complete, every line)
++- The single most relevant line immediately before each error
++- Fatal/critical warnings that indicate the root cause
++
++REMOVE EVERYTHING ELSE. No success messages, no status updates, no configuration dumps, no timing info unless directly related to a failure.
++
++Output ONLY the extracted errors. No commentary, no summary, no explanation. Just the error chain in chronological order.
++
++If this chunk contains NO errors, warnings, or failures, output exactly: [NO ERRORS IN THIS CHUNK]"""
++}
++
++MERGE_PROMPT = """You are a log merger. You will receive multiple condensed log chunks that were extracted from a single large log file in chronological order.
++
++Your job is to merge them into ONE coherent chronological document.
++
++RULES:
++- Maintain chronological order
++- Remove any duplicate information that appears at chunk boundaries
++- If the same error appears across chunks, keep it once with full context
++- Keep all unique errors, tracebacks, state changes, and diagnostic information
++- Do NOT add any summary, commentary, or explanation
++- Do NOT add section headers unless they were in the original chunks
++- Output ONLY the merged log content
++
++Merge these chunks into a single document:"""
++
++FILE 4: src/api_client.py
++
++import time
++import requests
++
++DEFAULT_API_URL = "http://127.0.0.1:1234/v1/chat/completions"
++MAX_RETRIES = 3
++RETRY_DELAY = 5
++
++
++def check_connection(api_url=DEFAULT_API_URL):
++    try:
++        base_url = api_url.rsplit("/v1/", 1)[0]
++        resp = requests.get(f"{base_url}/v1/models", timeout=5)
++        if resp.status_code == 200:
++            data = resp.json()
++            models = data.get("data", [])
++            if models:
++                return True, models[0].get("id", "Unknown Model")
++            return True, "Unknown Model"
++        return False, ""
++    except Exception:
++        return False, ""
++
++
++def send_to_llm(prompt, system_prompt, api_url=DEFAULT_API_URL, temperature=0.1, retry=0):
++    payload = {
++        "messages": [
++            {"role": "system", "content": system_prompt},
++            {"role": "user", "content": prompt}
++        ],
++        "temperature": temperature,
++        "max_tokens": -1,
++        "stream": False
++    }
++
++    try:
++        response = requests.post(api_url, json=payload, timeout=600)
++        response.raise_for_status()
++        data = response.json()
++        return data["choices"][0]["message"]["content"].strip()
++    except requests.exceptions.Timeout:
++        if retry < MAX_RETRIES:
++            time.sleep(RETRY_DELAY)
++            return send_to_llm(prompt, system_prompt, api_url, temperature, retry + 1)
++        raise RuntimeError("LLM request timed out after all retries.")
++    except requests.exceptions.ConnectionError:
++        if retry < MAX_RETRIES:
++            time.sleep(RETRY_DELAY)
++            return send_to_llm(prompt, system_prompt, api_url, temperature, retry + 1)
++        raise RuntimeError("Cannot connect to LM Studio. Is it running?")
++    except Exception as e:
++        if retry < MAX_RETRIES:
++            time.sleep(RETRY_DELAY)
++            return send_to_llm(prompt, system_prompt, api_url, temperature, retry + 1)
++        raise
+
+# 2026-06-05 11:34:48.241689
++n
+
+# 2026-06-05 11:36:19.439940
++/exit
+
+# 2026-06-05 11:36:26.069979
++n
+
+# 2026-06-05 11:36:30.135006
++y
+
+# 2026-06-05 11:36:34.769600
++/exit
+
+# 2026-06-05 11:39:38.173727
++Create the file src/__init__.py with exactly this content:
++
++# PulpGulp
+
+# 2026-06-05 11:40:04.707234
++y
+
+# 2026-06-05 11:40:11.442036
++Create the file src/prompts.py with exactly this content:
++
++PROMPTS = {
++    "light": """You are a log cleaner. Your job is to clean up the provided log by:
++
++1. REMOVE all duplicate and repeated lines. If a line appears multiple times, keep it once and add "[repeated N times]" after it.
++2. REMOVE all progress bars, download bars, percentage tickers, and spinner output.
++3. REMOVE excessive blank lines (collapse to single blank line).
++4. REMOVE redundant timestamp-only lines that carry no information.
++5. KEEP everything else exactly as-is, character for character.
++6. KEEP all errors, warnings, tracebacks, file paths, and numeric values verbatim.
++7. KEEP all status messages, state changes, and configuration output.
++
++Output ONLY the cleaned log. No commentary, no summary, no explanation. Just the cleaned log text.""",
++
++    "normal": """You are a diagnostic log extractor. Your job is to extract the diagnostic narrative from the provided log chunk. This means preserving everything needed to understand what happened, what broke, and why.
++
++PRESERVE (character for character, exact text):
++- ALL error messages, exceptions, tracebacks, and stack traces
++- ALL warnings
++- The 3-5 lines IMMEDIATELY BEFORE each error (the cause is usually there)
++- ALL file paths, line numbers, and numeric values exactly as they appear
++- ALL state changes (loaded, started, stopped, connected, disconnected, etc.)
++- ALL configuration values and environment info (versions, GPU info, memory, settings)
++- ALL timing information (how long things took)
++
++CONDENSE (keep briefly):
++- Success runs: collapse to one line like "Frames 1-14 processed successfully, avg 1.2s each"
++- Repeated identical lines: collapse to "[repeated N times, last value: X]"
++
++REMOVE:
++- Progress bars, download indicators, percentage tickers
++- Blank lines and whitespace-only lines
++- Redundant debug spam that adds no diagnostic value
++- Verbose logging that repeats the same info in different formats
++
++CRITICAL RULES:
++- Output ONLY the extracted log content. No commentary, no summary header, no explanation.
++- Do NOT paraphrase error messages. Copy them exactly.
++- Do NOT skip tracebacks. Include every line of every traceback.
++- Maintain chronological order.
++- When in doubt, KEEP the line rather than remove it.""",
++
++    "heavy": """You are an error extractor. Your job is to extract ONLY the failure chain from the provided log chunk.
++
++EXTRACT:
++- ALL error messages and exception text (exact, verbatim)
++- ALL tracebacks and stack traces (complete, every line)
++- The single most relevant line immediately before each error
++- Fatal/critical warnings that indicate the root cause
++
++REMOVE EVERYTHING ELSE. No success messages, no status updates, no configuration dumps, no timing info unless directly related to a failure.
++
++Output ONLY the extracted errors. No commentary, no summary, no explanation. Just the error chain in chronological order.
++
++If this chunk contains NO errors, warnings, or failures, output exactly: [NO ERRORS IN THIS CHUNK]"""
++}
++
++MERGE_PROMPT = """You are a log merger. You will receive multiple condensed log chunks that were extracted from a single large log file in chronological order.
++
++Your job is to merge them into ONE coherent chronological document.
++
++RULES:
++- Maintain chronological order
++- Remove any duplicate information that appears at chunk boundaries
++- If the same error appears across chunks, keep it once with full context
++- Keep all unique errors, tracebacks, state changes, and diagnostic information
++- Do NOT add any summary, commentary, or explanation
++- Do NOT add section headers unless they were in the original chunks
++- Output ONLY the merged log content
++
++Merge these chunks into a single document:"""
+
+# 2026-06-05 11:40:52.348272
++y
+
+# 2026-06-05 11:42:59.036121
++Create the file src/chunker.py with exactly this content:
++
++import os
++
++
++def read_file(filepath):
++    encodings = ["utf-8", "utf-8-sig", "latin-1", "cp1252", "ascii"]
++    for enc in encodings:
++        try:
++            with open(filepath, "r", encoding=enc) as f:
++                content = f.read()
++            return content
++        except (UnicodeDecodeError, UnicodeError):
++            continue
++    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
++        return f.read()
++
++
++def get_file_stats(content):
++    lines = content.splitlines()
++    line_count = len(lines)
++    byte_size = len(content.encode("utf-8", errors="replace"))
++    return line_count, byte_size
++
++
++def format_size(byte_size):
++    if byte_size < 1024:
++        return f"{byte_size} B"
++    elif byte_size < 1024 * 1024:
++        return f"{byte_size / 1024:.1f} KB"
++    else:
++        return f"{byte_size / (1024 * 1024):.1f} MB"
++
++
++def chunk_content(content, chunk_size=500):
++    lines = content.splitlines()
++    chunks = []
++    for i in range(0, len(lines), chunk_size):
++        chunk_lines = lines[i:i + chunk_size]
++        chunks.append("\n".join(chunk_lines))
++    return chunks
++
++
++def estimate_chunks(content, chunk_size=500):
++    line_count = len(content.splitlines())
++    if line_count == 0:
++        return 0
++    return (line_count + chunk_size - 1) // chunk_size
+
+# 2026-06-05 11:43:39.926247
++y
+
+# 2026-06-05 11:45:32.096521
++Create the file src/condenser.py with exactly this content:
++
++from src.prompts import PROMPTS, MERGE_PROMPT
++from src.api_client import send_to_llm
++from src.chunker import chunk_content, get_file_stats
++
++
++def condense_chunk(chunk_text, chunk_num, total_chunks, level="normal", context="", api_url="http://127.0.0.1:1234/v1/chat/completions"):
++    system_prompt = PROMPTS[level]
++    if context:
++        system_prompt += f"\n\nCONTEXT: This log is from: {context}"
++    user_prompt = f"[Chunk {chunk_num}/{total_chunks}]\n\n{chunk_text}"
++    return send_to_llm(user_prompt, system_prompt, api_url)
++
++
++def merge_chunks(condensed_chunks, api_url="http://127.0.0.1:1234/v1/chat/completions"):
++    if len(condensed_chunks) == 1:
++        return condensed_chunks[0]
++
++    if len(condensed_chunks) <= 15:
++        combined = ""
++        for i, chunk in enumerate(condensed_chunks):
++            combined += f"\n--- Chunk {i + 1} ---\n{chunk}\n"
++        return send_to_llm(combined, MERGE_PROMPT, api_url)
++
++    batch_size = 10
++    batches = []
++    for i in range(0, len(condensed_chunks), batch_size):
++        batch = condensed_chunks[i:i + batch_size]
++        combined = ""
++        for j, chunk in enumerate(batch):
++            combined += f"\n--- Chunk {i + j + 1} ---\n{chunk}\n"
++        merged_batch = send_to_llm(combined, MERGE_PROMPT, api_url)
++        batches.append(merged_batch)
++
++    if len(batches) > 1:
++        return merge_chunks(batches, api_url)
++    return batches[0]
+
+# 2026-06-05 11:45:46.016557
++d
+
+# 2026-06-05 11:46:13.901036
++y
+
+# 2026-06-05 11:49:01.646429
++Create the file src/styles.py with exactly this content:
++
++# PulpGulp Color Palette
++DARK_VOID = "#151419"
++LIQUID_LAVA = "#F56E0F"
++SALMON_RED = "#E8655A"
++GLUON_GREY = "#1B1B1E"
++SLATE_GREY = "#262626"
++DUSTY_GREY = "#878787"
++SNOW = "#FBFBFB"
++GREEN_DOT = "#4CAF50"
++RED_DOT = "#E53935"
++
++SALMON_RED_HOVER = "#D4584E"
++SALMON_RED_PRESSED = "#C04E44"
++SNOW_HOVER = "#E0E0E0"
++SNOW_PRESSED = "#C8C8C8"
++
++FONT_FAMILY = "Segoe UI"
++MONO_FONT = "Consolas"
++
++
++def get_stylesheet():
++    return f"""
++    QMainWindow {{
++        background-color: {DARK_VOID};
++    }}
++
++    QLabel {{
++        color: {SNOW};
++        font-family: {FONT_FAMILY};
++    }}
++
++    QLabel#tagline {{
++        color: {DUSTY_GREY};
++        font-size: 12px;
++    }}
++
++    QLabel#statsLabel {{
++        color: {DUSTY_GREY};
++        font-size: 12px;
++    }}
++
++    QLabel#chunkCounterLeft {{
++        color: {SNOW};
++        font-size: 12px;
++    }}
++
++    QLabel#chunkCounterRight {{
++        color: {SNOW};
++        font-size: 12px;
++    }}
++
++    QLabel#modelLabel {{
++        color: {DUSTY_GREY};
++        font-size: 11px;
++    }}
++
++    QLabel#etaLabel {{
++        color: {DUSTY_GREY};
++        font-size: 11px;
++    }}
++
++    QLabel#outputStatsLabel {{
++        color: {DUSTY_GREY};
++        font-size: 12px;
++        font-weight: bold;
++    }}
++
++    QLineEdit {{
++        background-color: {SLATE_GREY};
++        color: {SNOW};
++        border: 1px solid {DUSTY_GREY};
++        border-radius: 6px;
++        padding: 8px 12px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    }}
++
++    QLineEdit:focus {{
++        border: 1px solid {SALMON_RED};
++    }}
++
++    QSpinBox {{
++        background-color: {SLATE_GREY};
++        color: {SNOW};
++        border: 1px solid {DUSTY_GREY};
++        border-radius: 6px;
++        padding: 8px 12px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    }}
++
++    QSpinBox::up-button, QSpinBox::down-button {{
++        background-color: {GLUON_GREY};
++        border: none;
++        width: 20px;
++    }}
++
++    QSpinBox::up-arrow {{
++        image: none;
++        border-left: 5px solid transparent;
++        border-right: 5px solid transparent;
++        border-bottom: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QSpinBox::down-arrow {{
++        image: none;
++        border-left: 5px solid transparent;
++        border-right: 5px solid transparent;
++        border-top: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QPlainTextEdit#outputTerminal {{
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: 1px solid {SLATE_GREY};
++        border-radius: 8px;
++        padding: 12px;
++        font-family: {MONO_FONT};
++        font-size: 12px;
++        selection-background-color: {SALMON_RED};
++    }}
++
++    QPlainTextEdit#pasteArea {{
++        background-color: {GLUON_GREY};
++        color: {SNOW};
++        border: 1px solid {DUSTY_GREY};
++        border-radius: 8px;
++        padding: 12px;
++        font-family: {MONO_FONT};
++        font-size: 12px;
++    }}
++
++    QPushButton#condenseBtn {{
++        background-color: {SALMON_RED};
++        color: {SNOW};
++        border: none;
++        border-radius: 10px;
++        padding: 16px;
++        font-family: {FONT_FAMILY};
++        font-size: 20px;
++        font-weight: bold;
++    }}
++
++    QPushButton#condenseBtn:hover {{
++        background-color: {SALMON_RED_HOVER};
++    }}
++
++    QPushButton#condenseBtn:pressed {{
++        background-color: {SALMON_RED_PRESSED};
++    }}
++
++    QPushButton#condenseBtn:disabled {{
++        background-color: {SLATE_GREY};
++        color: {DUSTY_GREY};
++    }}
++
++    QPushButton#stopBtn {{
++        background-color: {SNOW};
++        color: {DARK_VOID};
++        border: none;
++        border-radius: 10px;
++        padding: 16px;
++        font-family: {FONT_FAMILY};
++        font-size: 20px;
++        font-weight: bold;
++    }}
++
++    QPushButton#stopBtn:hover {{
++        background-color: {SNOW_HOVER};
++    }}
++
++    QPushButton#stopBtn:pressed {{
++        background-color: {SNOW_PRESSED};
++    }}
++
++    QPushButton#wireframeBtn {{
++        background-color: transparent;
++        color: {DUSTY_GREY};
++        border: 1px solid {SALMON_RED};
++        border-radius: 8px;
++        padding: 10px 20px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    }}
++
++    QPushButton#wireframeBtn:hover {{
++        background-color: {SALMON_RED};
++        color: {SNOW};
++    }}
++
++    QPushButton#wireframeBtn:pressed {{
++        background-color: {SALMON_RED_PRESSED};
++        color: {SNOW};
++    }}
++
++    QPushButton#wireframeBtn:disabled {{
++        border: 1px solid {SLATE_GREY};
++        color: {SLATE_GREY};
++    }}
++
++    QPushButton#clearBtn {{
++        background-color: transparent;
++        color: {DUSTY_GREY};
++        border: none;
++        font-size: 18px;
++        font-weight: bold;
++    }}
++
++    QPushButton#clearBtn:hover {{
++        color: {SALMON_RED};
++    }}
++
++    QPushButton#retryBtn {{
++        background-color: {SALMON_RED};
++        color: {SNOW};
++        border: none;
++        border-radius: 6px;
++        padding: 10px 30px;
++        font-family: {FONT_FAMILY};
++        font-size: 14px;
++        font-weight: bold;
++    }}
++
++    QPushButton#retryBtn:hover {{
++        background-color: {SALMON_RED_HOVER};
++    }}
++
++    QProgressBar {{
++        background-color: {SLATE_GREY};
++        border: none;
++        border-radius: 8px;
++        height: 20px;
++        text-align: center;
++    }}
++
++    QProgressBar::chunk {{
++        background-color: {SALMON_RED};
++        border-radius: 8px;
++    }}
++
++    QProgressBar#secondaryProgress {{
++        height: 6px;
++        border-radius: 3px;
++    }}
++
++    QProgressBar#secondaryProgress::chunk {{
++        border-radius: 3px;
++    }}
++    """
++
++
++def get_drop_zone_style(has_file=False):
++    if has_file:
++        return f"""
++            background-color: {GLUON_GREY};
++            border: none;
++            border-radius: 8px;
++            padding: 10px 16px;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        border: 2px dashed {SALMON_RED};
++        border-radius: 8px;
++        padding: 30px;
++    """
++
++
++def get_toggle_style(active=False):
++    if active:
++        return f"""
++            background-color: {SALMON_RED};
++            color: {SNOW};
++            border: none;
++            border-radius: 6px;
++            padding: 8px 20px;
++            font-family: {FONT_FAMILY};
++            font-size: 13px;
++            font-weight: bold;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: none;
++        border-radius: 6px;
++        padding: 8px 20px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    """
++
++
++def get_mode_toggle_style(active=False):
++    if active:
++        return f"""
++            background-color: {SALMON_RED};
++            color: {SNOW};
++            border: none;
++            border-radius: 20px;
++            padding: 10px 28px;
++            font-family: {FONT_FAMILY};
++            font-size: 14px;
++            font-weight: bold;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: none;
++        border-radius: 20px;
++        padding: 10px 28px;
++        font-family: {FONT_FAMILY};
++        font-size: 14px;
++    """
++
++
++def get_file_bar_style():
++    return f"""
++        background-color: {GLUON_GREY};
++        border-radius: 8px;
++        padding: 4px;
++    """
++
++
++def get_warning_overlay_style():
++    return f"""
++        background-color: rgba(21, 20, 25, 200);
++    """
++
++
++def get_warning_card_style():
++    return f"""
++        background-color: {DARK_VOID};
++        border: 2px solid {RED_DOT};
++        border-radius: 12px;
++        padding: 30px;
++    """
+
+# 2026-06-05 11:50:19.493091
++y
+
+# 2026-06-05 11:52:08.242834
++Create the file src/worker.py with exactly this content:
++
++import time
++from PyQt6.QtCore import QThread, pyqtSignal
++from src.condenser import condense_chunk, merge_chunks
++from src.chunker import chunk_content, get_file_stats
++
++
++class CondenseWorker(QThread):
++    chunk_started = pyqtSignal(int, int)
++    chunk_completed = pyqtSignal(int, int, str)
++    merge_started = pyqtSignal()
++    merge_completed = pyqtSignal(str)
++    error_occurred = pyqtSignal(str)
++    progress_tick = pyqtSignal(float)
++
++    def __init__(self, content, level, context, chunk_size, api_url):
++        super().__init__()
++        self.content = content
++        self.level = level
++        self.context = context
++        self.chunk_size = chunk_size
++        self.api_url = api_url
++        self._stop_requested = False
++        self.chunk_times = []
++
++    def request_stop(self):
++        self._stop_requested = True
++
++    def run(self):
++        try:
++            chunks = chunk_content(self.content, self.chunk_size)
++            total_chunks = len(chunks)
++
++            if total_chunks == 0:
++                self.error_occurred.emit("No content to process.")
++                return
++
++            condensed_chunks = []
++
++            for i, chunk_text in enumerate(chunks):
++                if self._stop_requested:
++                    return
++
++                chunk_num = i + 1
++                self.chunk_started.emit(chunk_num, total_chunks)
++
++                start_time = time.time()
++                result = condense_chunk(
++                    chunk_text, chunk_num, total_chunks,
++                    self.level, self.context, self.api_url
++                )
++                elapsed = time.time() - start_time
++                self.chunk_times.append(elapsed)
++
++                condensed_chunks.append(result)
++
++                base_progress = (chunk_num / total_chunks) * 100
++                self.progress_tick.emit(base_progress)
++                self.chunk_completed.emit(chunk_num, total_chunks, result)
++
++            if self._stop_requested:
++                return
++
++            if total_chunks > 1:
++                self.merge_started.emit()
++                final = merge_chunks(condensed_chunks, self.api_url)
++                self.merge_completed.emit(final)
++            else:
++                self.merge_completed.emit(condensed_chunks[0])
++
++        except Exception as e:
++            self.error_occurred.emit(str(e))
++
++    def get_eta_seconds(self, current_chunk, total_chunks):
++        if not self.chunk_times:
++            return 0
++        avg_time = sum(self.chunk_times) / len(self.chunk_times)
++        remaining = total_chunks - current_chunk
++        return avg_time * remaining
+
+# 2026-06-05 11:52:43.957433
++y
+
+# 2026-06-05 11:54:20.946289
++Create the file src/splash_screen.py with exactly this content:
++
++from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsOpacityEffect
++from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
++from PyQt6.QtGui import QFont
++from src.styles import DARK_VOID, LIQUID_LAVA, SNOW, DUSTY_GREY, FONT_FAMILY
++
++
++class SplashScreen(QWidget):
++    def __init__(self, on_finished):
++        super().__init__()
++        self.on_finished = on_finished
++        self.setStyleSheet(f"background-color: {DARK_VOID};")
++        self.setup_ui()
++
++        self.opacity_effect = QGraphicsOpacityEffect(self)
++        self.setGraphicsEffect(self.opacity_effect)
++        self.opacity_effect.setOpacity(1.0)
++
++        QTimer.singleShot(2500, self.fade_out)
++
++    def setup_ui(self):
++        layout = QVBoxLayout(self)
++        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        layout.setSpacing(0)
++        layout.setContentsMargins(0, 0, 0, 0)
++
++        spacer_top = QWidget()
++        spacer_top.setFixedHeight(1)
++        layout.addWidget(spacer_top, stretch=3)
++
++        logo_container = QWidget()
++        logo_layout = QVBoxLayout(logo_container)
++        logo_layout.setSpacing(0)
++        logo_layout.setContentsMargins(0, 0, 0, 0)
++        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
++
++        pulp_label = QLabel("pulp")
++        pulp_font = QFont(FONT_FAMILY, 72, QFont.Weight.Black)
++        pulp_label.setFont(pulp_font)
++        pulp_label.setStyleSheet(f"color: {LIQUID_LAVA}; background: transparent;")
++        pulp_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
++        pulp_label.setContentsMargins(0, 0, 0, -10)
++        logo_layout.addWidget(pulp_label)
++
++        gulp_label = QLabel("gulp")
++        gulp_font = QFont(FONT_FAMILY, 72, QFont.Weight.Black)
++        gulp_label.setFont(gulp_font)
++        gulp_label.setStyleSheet(f"color: {SNOW}; background: transparent;")
++        gulp_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
++        gulp_label.setContentsMargins(40, -10, 0, 0)
++        logo_layout.addWidget(gulp_label)
++
++        layout.addWidget(logo_container)
++
++        tagline = QLabel("a vibe coder's friend")
++        tagline_font = QFont(FONT_FAMILY, 14)
++        tagline.setFont(tagline_font)
++        tagline.setStyleSheet(f"color: {DUSTY_GREY}; background: transparent;")
++        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        tagline.setContentsMargins(0, 10, 0, 0)
++        layout.addWidget(tagline)
++
++        spacer_bottom = QWidget()
++        spacer_bottom.setFixedHeight(1)
++        layout.addWidget(spacer_bottom, stretch=2)
++
++        credit = QLabel("designed by d3nnyvg3org3")
++        credit_font = QFont(FONT_FAMILY, 11)
++        credit.setFont(credit_font)
++        credit.setStyleSheet(f"color: {DUSTY_GREY}; background: transparent;")
++        credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        credit.setContentsMargins(0, 0, 0, 40)
++        layout.addWidget(credit)
++
++    def fade_out(self):
++        self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
++        self.animation.setDuration(500)
++        self.animation.setStartValue(1.0)
++        self.animation.setEndValue(0.0)
++        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
++        self.animation.finished.connect(self.on_finished)
++        self.animation.start()
+
+# 2026-06-05 11:54:56.435971
++d
+
+# 2026-06-05 11:57:10.729870
++/clear
+
+# 2026-06-05 11:57:15.949221
++/drop src/__init__.py src/prompts.py src/api_client.py src/chunker.py src/condenser.py src/styles.py src/worker.py
+
+# 2026-06-05 11:58:04.368939
++Create the file src/splash_screen.py with exactly this content:
++
++from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsOpacityEffect
++from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
++from PyQt6.QtGui import QFont
++from src.styles import DARK_VOID, LIQUID_LAVA, SNOW, DUSTY_GREY, FONT_FAMILY
++
++
++class SplashScreen(QWidget):
++    def __init__(self, on_finished):
++        super().__init__()
++        self.on_finished = on_finished
++        self.setStyleSheet(f"background-color: {DARK_VOID};")
++        self.setup_ui()
++
++        self.opacity_effect = QGraphicsOpacityEffect(self)
++        self.setGraphicsEffect(self.opacity_effect)
++        self.opacity_effect.setOpacity(1.0)
++
++        QTimer.singleShot(2500, self.fade_out)
++
++    def setup_ui(self):
++        layout = QVBoxLayout(self)
++        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        layout.setSpacing(0)
++        layout.setContentsMargins(0, 0, 0, 0)
++
++        spacer_top = QWidget()
++        spacer_top.setFixedHeight(1)
++        layout.addWidget(spacer_top, stretch=3)
++
++        logo_container = QWidget()
++        logo_layout = QVBoxLayout(logo_container)
++        logo_layout.setSpacing(0)
++        logo_layout.setContentsMargins(0, 0, 0, 0)
++        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
++
++        pulp_label = QLabel("pulp")
++        pulp_font = QFont(FONT_FAMILY, 72, QFont.Weight.Black)
++        pulp_label.setFont(pulp_font)
++        pulp_label.setStyleSheet(f"color: {LIQUID_LAVA}; background: transparent;")
++        pulp_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
++        pulp_label.setContentsMargins(0, 0, 0, -10)
++        logo_layout.addWidget(pulp_label)
++
++        gulp_label = QLabel("gulp")
++        gulp_font = QFont(FONT_FAMILY, 72, QFont.Weight.Black)
++        gulp_label.setFont(gulp_font)
++        gulp_label.setStyleSheet(f"color: {SNOW}; background: transparent;")
++        gulp_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
++        gulp_label.setContentsMargins(40, -10, 0, 0)
++        logo_layout.addWidget(gulp_label)
++
++        layout.addWidget(logo_container)
++
++        tagline = QLabel("a vibe coder's friend")
++        tagline_font = QFont(FONT_FAMILY, 14)
++        tagline.setFont(tagline_font)
++        tagline.setStyleSheet(f"color: {DUSTY_GREY}; background: transparent;")
++        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        tagline.setContentsMargins(0, 10, 0, 0)
++        layout.addWidget(tagline)
++
++        spacer_bottom = QWidget()
++        spacer_bottom.setFixedHeight(1)
++        layout.addWidget(spacer_bottom, stretch=2)
++
++        credit = QLabel("designed by d3nnyvg3org3")
++        credit_font = QFont(FONT_FAMILY, 11)
++        credit.setFont(credit_font)
++        credit.setStyleSheet(f"color: {DUSTY_GREY}; background: transparent;")
++        credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        credit.setContentsMargins(0, 0, 0, 40)
++        layout.addWidget(credit)
++
++    def fade_out(self):
++        self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
++        self.animation.setDuration(500)
++        self.animation.setStartValue(1.0)
++        self.animation.setEndValue(0.0)
++        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
++        self.animation.finished.connect(self.on_finished)
++        self.animation.start()
+
+# 2026-06-05 11:58:29.808305
++y
+
+# 2026-06-05 12:06:21.209215
++lms server start
++cd J:\Projects\PulpGulp
++pip install PyQt6 requests chardet
++python pulpgulp.py
+
+# 2026-06-05 12:06:56.158564
++/exit
+
+# 2026-06-05 12:35:06.337724
++cd J:\Projects\PulpGulp
++python pulpgulp.py
+
+# 2026-06-05 12:36:16.732145
++/exit
+
+# 2026-06-05 17:42:00.711471
++Add src/main_window.py to the chat and make these exact changes. Change ONLY the numerical values listed below. Do not change any logic, variable names, imports, or anything else.
++
++1. Drop zone: change setFixedHeight(80) to setFixedHeight(128)
++2. CONDENSE button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++3. STOP button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++4. Main progress bar: change setFixedHeight(26) to setFixedHeight(46)
++5. Bottom buttons (all three - copy_btn, save_btn, show_btn): change setFixedHeight(44) to setFixedHeight(76)
++6. The _add_spacer(20) call before _build_action_button should be _add_spacer(53)
++7. The _add_spacer(12) call before _build_progress_section should be _add_spacer(4)
++8. The _add_spacer(10) call before _build_output_area should be _add_spacer(28)
++9. The _add_spacer(8) call before _build_bottom_buttons should be _add_spacer(34)
++10. The _add_spacer(10) call after _build_header should be _add_spacer(43)
+
+# 2026-06-05 17:43:00.260652
++/clear
+
+# 2026-06-05 17:43:04.730178
++Add src/main_window.py to the chat and make these exact changes. Change ONLY the numerical values listed below. Do not change any logic, variable names, imports, or anything else.
++
++1. Drop zone: change setFixedHeight(80) to setFixedHeight(128)
++2. CONDENSE button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++3. STOP button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++4. Main progress bar: change setFixedHeight(26) to setFixedHeight(46)
++5. Bottom buttons (all three - copy_btn, save_btn, show_btn): change setFixedHeight(44) to setFixedHeight(76)
++6. The _add_spacer(20) call before _build_action_button should be _add_spacer(53)
++7. The _add_spacer(12) call before _build_progress_section should be _add_spacer(4)
++8. The _add_spacer(10) call before _build_output_area should be _add_spacer(28)
++9. The _add_spacer(8) call before _build_bottom_buttons should be _add_spacer(34)
++10. The _add_spacer(10) call after _build_header should be _add_spacer(43)
+
+# 2026-06-05 17:45:04.353965
++/add src/main_window.py
+
+# 2026-06-05 17:45:21.259094
++Make these exact numerical changes to src/main_window.py. Change ONLY the values listed. Do not change any logic, variable names, imports, or anything else.
++
++1. Drop zone: change setFixedHeight(80) to setFixedHeight(128)
++2. CONDENSE button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++3. STOP button: change setFixedHeight(58) to setFixedHeight(79) AND change setMinimumWidth(420) to setFixedWidth(307)
++4. Main progress bar: change setFixedHeight(26) to setFixedHeight(46)
++5. Bottom buttons (all three - copy_btn, save_btn, show_btn): change setFixedHeight(44) to setFixedHeight(76)
++6. The _add_spacer(20) call before _build_action_button should be _add_spacer(53)
++7. The _add_spacer(12) call before _build_progress_section should be _add_spacer(4)
++8. The _add_spacer(10) call before _build_output_area should be _add_spacer(28)
++9. The _add_spacer(8) call before _build_bottom_buttons should be _add_spacer(34)
++10. The _add_spacer(10) call after _build_header should be _add_spacer(43)
+
+# 2026-06-05 17:51:42.785218
++/exit
+
+# 2026-06-05 18:01:27.202830
++Replace the entire contents of src/splash_screen.py with exactly this:
++
++import os
++from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QGraphicsOpacityEffect
++from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
++from PyQt6.QtGui import QPixmap
++
++
++def resource_path(filename):
++    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++    return os.path.join(base, "assets", filename)
++
++
++class SplashScreen(QWidget):
++    def __init__(self, on_finished):
++        super().__init__()
++        self.on_finished = on_finished
++        self.setStyleSheet("background-color: #151419;")
++        self.setup_ui()
++
++        self.opacity_effect = QGraphicsOpacityEffect(self)
++        self.setGraphicsEffect(self.opacity_effect)
++        self.opacity_effect.setOpacity(1.0)
++
++        QTimer.singleShot(2500, self.fade_out)
++
++    def setup_ui(self):
++        layout = QVBoxLayout(self)
++        layout.setContentsMargins(0, 0, 0, 0)
++        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
++
++        self.splash_image = QLabel()
++        self.splash_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        self.splash_image.setStyleSheet("background: transparent;")
++
++        splash_path = resource_path("splash.png")
++        if os.path.isfile(splash_path):
++            pixmap = QPixmap(splash_path)
++            self.splash_image.setPixmap(pixmap.scaled(
++                750, 960,
++                Qt.AspectRatioMode.KeepAspectRatio,
++                Qt.TransformationMode.SmoothTransformation
++            ))
++
++        layout.addWidget(self.splash_image)
++
++    def fade_out(self):
++        self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
++        self.animation.setDuration(500)
++        self.animation.setStartValue(1.0)
++        self.animation.setEndValue(0.0)
++        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
++        self.animation.finished.connect(self.on_finished)
++        self.animation.start()
+
+# 2026-06-05 18:02:04.333073
++y
+
+# 2026-06-05 18:02:20.400326
++/exit
+
+# 2026-06-05 18:17:07.477710
++In src/main_window.py, find the load_file method. After the line that says self.file_path_label.setText(path), add this single new line:
++
++        self.context_input.setText(os.path.splitext(os.path.basename(path))[0].replace("_", " "))
++
++Do not change anything else in the file.
+
+# 2026-06-05 18:18:02.263858
++/add src/main_window.py
+
+# 2026-06-05 18:18:09.074952
++In src/main_window.py, find the load_file method. After the line that says self.file_path_label.setText(path), add this single new line:
++
++        self.context_input.setText(os.path.splitext(os.path.basename(path))[0].replace("_", " "))
++
++Do not change anything else in the file.
+
+# 2026-06-05 18:27:54.395407
++/clear
+
+# 2026-06-05 18:27:59.046626
++In src/styles.py, replace the get_mode_toggle_style function with this exact code:
++
++def get_mode_toggle_style(active=False, position="left"):
++    if position == "left":
++        tl = "20px"
++        tr = "0px"
++        br = "0px"
++        bl = "20px"
++    else:
++        tl = "0px"
++        tr = "20px"
++        br = "20px"
++        bl = "0px"
++
++    if active:
++        return f"""
++            background-color: {ACCENT};
++            color: {SNOW};
++            border: none;
++            border-top-left-radius: {tl};
++            border-top-right-radius: {tr};
++            border-bottom-right-radius: {br};
++            border-bottom-left-radius: {bl};
++            padding: 10px 28px;
++            font-family: {FONT_FAMILY};
++            font-size: 14px;
++            font-weight: bold;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: none;
++        border-top-left-radius: {tl};
++        border-top-right-radius: {tr};
++        border-bottom-right-radius: {br};
++        border-bottom-left-radius: {bl};
++        padding: 10px 28px;
++        font-family: {FONT_FAMILY};
++        font-size: 14px;
++    """
++
++Do not change anything else in the file.
+
+# 2026-06-05 18:29:41.326767
++/clear
++/drop src/main_window.py
++/add src/styles.py
+
+# 2026-06-05 18:30:10.129346
++In src/styles.py, replace the get_mode_toggle_style function with this exact code:
++
++def get_mode_toggle_style(active=False, position="left"):
++    if position == "left":
++        tl = "20px"
++        tr = "0px"
++        br = "0px"
++        bl = "20px"
++    else:
++        tl = "0px"
++        tr = "20px"
++        br = "20px"
++        bl = "0px"
++
++    if active:
++        return f"""
++            background-color: {ACCENT};
++            color: {SNOW};
++            border: none;
++            border-top-left-radius: {tl};
++            border-top-right-radius: {tr};
++            border-bottom-right-radius: {br};
++            border-bottom-left-radius: {bl};
++            padding: 10px 28px;
++            font-family: {FONT_FAMILY};
++            font-size: 14px;
++            font-weight: bold;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: none;
++        border-top-left-radius: {tl};
++        border-top-right-radius: {tr};
++        border-bottom-right-radius: {br};
++        border-bottom-left-radius: {bl};
++        padding: 10px 28px;
++        font-family: {FONT_FAMILY};
++        font-size: 14px;
++    """
++
++Do not change anything else in the file.
+
+# 2026-06-05 18:56:05.986450
++/clear
+
+# 2026-06-05 18:56:10.217408
++/drop src/main_window.py
+
+# 2026-06-05 18:56:16.277368
++/add src/styles.py
+
+# 2026-06-05 18:56:42.498174
++In src/styles.py, replace the get_mode_toggle_style function with this exact code:
++
++def get_mode_toggle_style(active=False, position="left"):
++    if position == "left":
++        tl = "20px"
++        tr = "0px"
++        br = "0px"
++        bl = "20px"
++    else:
++        tl = "0px"
++        tr = "20px"
++        br = "20px"
++        bl = "0px"
++
++    if active:
++        return f"""
++            background-color: {ACCENT};
++            color: {SNOW};
++            border: none;
++            border-top-left-radius: {tl};
++            border-top-right-radius: {tr};
++            border-bottom-right-radius: {br};
++            border-bottom-left-radius: {bl};
++            padding: 10px 28px;
++            font-family: {FONT_FAMILY};
++            font-size: 14px;
++            font-weight: bold;
++        """
++    return f"""
++        background-color: {GLUON_GREY};
++        color: {DUSTY_GREY};
++        border: none;
++        border-top-left-radius: {tl};
++        border-top-right-radius: {tr};
++        border-bottom-right-radius: {br};
++        border-bottom-left-radius: {bl};
++        padding: 10px 28px;
++        font-family: {FONT_FAMILY};
++        font-size: 14px;
++    """
++
++Do not change anything else in the file.
+
+# 2026-06-05 19:12:03.171055
++/add src/main_window.py
+
+# 2026-06-05 19:12:07.266678
++In src/main_window.py, find the update_mode_toggle method and replace it with this exact code:
++
++    def update_mode_toggle(self):
++        self.btn_mode_file.setStyleSheet(get_mode_toggle_style(self.mode == "file", "left"))
++        self.btn_mode_paste.setStyleSheet(get_mode_toggle_style(self.mode == "paste", "right"))
++
++Do not change anything else in the file.
+
+# 2026-06-05 19:15:59.923683
++/exit
+
+# 2026-06-05 21:29:43.152695
++In src/main_window.py, find the _build_level_toggle method. Find the line that says level_layout.setSpacing(0) and change it to level_layout.setSpacing(4)
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:30:31.390397
++/add src/main_window.py
+
+# 2026-06-05 21:30:51.009509
++In src/main_window.py, find the _build_level_toggle method. Find the line that says level_layout.setSpacing(0) and change it to level_layout.setSpacing(4)
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:34:31.553006
++/exit
+
+# 2026-06-05 21:38:11.195379
++In src/styles.py, replace the entire QSpinBox section (from QSpinBox { to the end of QSpinBox::down-arrow) with this exact code:
++
++    QSpinBox {{
++        background-color: {SLATE_GREY};
++        color: {SNOW};
++        border: 1px solid {ACCENT};
++        border-radius: 6px;
++        padding: 8px 28px 8px 12px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    }}
++
++    QSpinBox::up-button {{
++        background-color: transparent;
++        border: none;
++        width: 18px;
++        height: 12px;
++        subcontrol-position: top right;
++        subcontrol-origin: padding;
++        margin-top: 4px;
++        margin-right: 6px;
++    }}
++
++    QSpinBox::down-button {{
++        background-color: transparent;
++        border: none;
++        width: 18px;
++        height: 12px;
++        subcontrol-position: bottom right;
++        subcontrol-origin: padding;
++        margin-bottom: 4px;
++        margin-right: 6px;
++    }}
++
++    QSpinBox::up-arrow {{
++        image: none;
++        border-left: 4px solid transparent;
++        border-right: 4px solid transparent;
++        border-bottom: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QSpinBox::down-arrow {{
++        image: none;
++        border-left: 4px solid transparent;
++        border-right: 4px solid transparent;
++        border-top: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QSpinBox::up-arrow:hover {{
++        border-bottom: 5px solid {ACCENT};
++    }}
++
++    QSpinBox::down-arrow:hover {{
++        border-top: 5px solid {ACCENT};
++    }}
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:38:58.938517
++/drop src/main_window.py
++/add src/styles.py
+
+# 2026-06-05 21:39:20.089069
++/add src/styles.py
+
+# 2026-06-05 21:39:23.106933
++/ls
+
+# 2026-06-05 21:39:44.810835
++In src/styles.py, replace the entire QSpinBox section (from QSpinBox { to the end of QSpinBox::down-arrow) with this exact code:
++
++    QSpinBox {{
++        background-color: {SLATE_GREY};
++        color: {SNOW};
++        border: 1px solid {ACCENT};
++        border-radius: 6px;
++        padding: 8px 28px 8px 12px;
++        font-family: {FONT_FAMILY};
++        font-size: 13px;
++    }}
++
++    QSpinBox::up-button {{
++        background-color: transparent;
++        border: none;
++        width: 18px;
++        height: 12px;
++        subcontrol-position: top right;
++        subcontrol-origin: padding;
++        margin-top: 4px;
++        margin-right: 6px;
++    }}
++
++    QSpinBox::down-button {{
++        background-color: transparent;
++        border: none;
++        width: 18px;
++        height: 12px;
++        subcontrol-position: bottom right;
++        subcontrol-origin: padding;
++        margin-bottom: 4px;
++        margin-right: 6px;
++    }}
++
++    QSpinBox::up-arrow {{
++        image: none;
++        border-left: 4px solid transparent;
++        border-right: 4px solid transparent;
++        border-bottom: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QSpinBox::down-arrow {{
++        image: none;
++        border-left: 4px solid transparent;
++        border-right: 4px solid transparent;
++        border-top: 5px solid {DUSTY_GREY};
++        width: 0;
++        height: 0;
++    }}
++
++    QSpinBox::up-arrow:hover {{
++        border-bottom: 5px solid {ACCENT};
++    }}
++
++    QSpinBox::down-arrow:hover {{
++        border-top: 5px solid {ACCENT};
++    }}
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:41:25.557694
++/exit
+
+# 2026-06-05 21:48:23.402706
++In src/main_window.py, find the resource_path function and replace it with this exact code:
++
++def resource_path(filename):
++    import sys
++    if getattr(sys, '_MEIPASS', None):
++        base = sys._MEIPASS
++    else:
++        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++    return os.path.join(base, "assets", filename)
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:49:25.892399
++/add src/main_window.py
+
+# 2026-06-05 21:49:32.956944
++In src/main_window.py, find the resource_path function and replace it with this exact code:
++
++def resource_path(filename):
++    import sys
++    if getattr(sys, '_MEIPASS', None):
++        base = sys._MEIPASS
++    else:
++        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++    return os.path.join(base, "assets", filename)
++
++Do not change anything else in the file.
+
+# 2026-06-05 21:53:30.268657
++/exit
