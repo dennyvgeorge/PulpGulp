@@ -1,5 +1,5 @@
 
------it's the one built for people who can't read logs, not the one built for engineers who want faster log reading.-----
+----it's the one built for people who can't read logs, not the one built for engineers who want faster log reading.----
 
 PulpGulp - "Logs are unstructured. They're too big for local LLM context windows. PulpGulp chunks them intelligently, processes each chunk, and merges the results into a single coherent narrative. Enterprise tools solve this at scale. PulpGulp solves it locally, for free, on your own hardware."
 Stop burning Claude usage on massive system logs.
